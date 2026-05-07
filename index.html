@@ -603,9 +603,6 @@ function openEdit(cod) {
   document.getElementById('fU').value  = p.ubicacion;
   document.getElementById('fZ').value  = p.zona;
   document.getElementById('fNo').value = p.notas;
-  const prev = document.getElementById('fFP'), ph = document.getElementById('fFPH');
-  if (p.foto) { prev.src = p.foto; prev.style.display = 'block'; ph.style.display = 'none'; }
-  else { prev.style.display = 'none'; ph.style.display = 'block'; }
   document.getElementById('saveMsg').textContent = '';
   close1('oDetail'); open1('oForm');
 }
@@ -613,8 +610,6 @@ function openEdit(cod) {
 function clearF() {
   ['fN','fP','fU','fNo'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('fZ').value = '';
-  document.getElementById('fFP').style.display = 'none';
-  document.getElementById('fFPH').style.display = 'block';
   document.getElementById('saveMsg').textContent = '';
 }
 function closeForm() { close1('oForm'); clearF(); editRow = -1; }
@@ -650,7 +645,7 @@ async function saveProduct() {
     hoy,
     document.getElementById('fU').value,
     document.getElementById('fZ').value,
-    ph64 || (ex ? ex.foto : ''),
+    '',
     document.getElementById('fNo').value,
     ex ? ex.fechaAlta : hoy,
   ];
