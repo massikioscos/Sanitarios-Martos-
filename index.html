@@ -212,6 +212,12 @@ body { background: #f0f4fa; color: #1a1a2e; font-family: 'Nunito', sans-serif; f
 }
 .btn-save:active { background: #15803d; }
 .btn-save:disabled { background: #a7c8b4; cursor: not-allowed; }
+.btn-delete {
+  width: 100%; background: #fff5f5; color: #e53e3e; border: 2px solid #fca5a5;
+  border-radius: 14px; padding: 13px; font-size: 15px; font-weight: 800;
+  font-family: 'Nunito', sans-serif; cursor: pointer; margin-top: 10px;
+}
+.btn-delete:active { background: #ffe0e0; }
 .save-msg { text-align: center; font-size: 14px; font-weight: 700; margin-top: 10px; min-height: 20px; }
 
 /* ZONES */
@@ -313,6 +319,7 @@ body { background: #f0f4fa; color: #1a1a2e; font-family: 'Nunito', sans-serif; f
     <button class="btn-save" id="btnSave" onclick="saveProduct()">💾 Guardar</button>
     <div class="save-msg" id="saveMsg"></div>
     <button class="btn-gray" onclick="closeForm()">Cancelar</button>
+    <button class="btn-delete" id="btnDelete" style="display:none" onclick="deleteProduct()">🗑️ Eliminar Producto</button>
   </div>
 </div>
 
@@ -584,6 +591,7 @@ function openForm() {
   editRow = -1; ph64 = null;
   document.getElementById('formTtl').textContent = 'Nuevo Producto';
   document.getElementById('btnSave').textContent = '💾 Guardar';
+  document.getElementById('btnDelete').style.display = 'none';
   const code = nextCode();
   document.getElementById('autoCodeBadge').textContent = `# ${code}`;
   document.getElementById('autoCodeBadge').dataset.code = code;
@@ -596,6 +604,7 @@ function openEdit(cod) {
   editRow = p.rowIndex; ph64 = null;
   document.getElementById('formTtl').textContent = 'Editar Producto';
   document.getElementById('btnSave').textContent = '💾 Actualizar';
+  document.getElementById('btnDelete').style.display = 'block';
   document.getElementById('autoCodeBadge').textContent = `# ${p.codigo}`;
   document.getElementById('autoCodeBadge').dataset.code = p.codigo;
   document.getElementById('fN').value  = p.nombre;
@@ -661,7 +670,26 @@ async function saveProduct() {
     sync('ok');
     showMsg('✅ Guardado correctamente', '#16a34a');
     btn.textContent = '✅ Listo';
-    setTimeout(() => { closeForm(); load(); }, 800);
+
+    // Actualizar lista local sin recargar página
+    const newProduct = {
+      rowIndex : editRow > 0 ? editRow : (products.length ? Math.max(...products.map(p=>p.rowIndex)) + 1 : 2),
+      codigo, nombre,
+      precio   : parseFloat(document.getElementById('fP').value) || 0,
+      fecha    : hoy,
+      ubicacion: document.getElementById('fU').value,
+      zona     : document.getElementById('fZ').value,
+      foto     : '',
+      notas    : document.getElementById('fNo').value,
+      fechaAlta: ex ? ex.fechaAlta : hoy,
+    };
+    if (editRow > 0) {
+      const idx = products.findIndex(p => p.rowIndex === editRow);
+      if (idx >= 0) products[idx] = newProduct;
+    } else {
+      products.push(newProduct);
+    }
+    setTimeout(() => { closeForm(); apply(); badge(); }, 800);
   } catch(e) {
     sync('e');
     showMsg('❌ Error: ' + e.message, '#e53e3e');
@@ -673,6 +701,27 @@ async function saveProduct() {
 function showMsg(txt, color) {
   const el = document.getElementById('saveMsg');
   el.textContent = txt; el.style.color = color;
+}
+
+async function deleteProduct() {
+  if (!confirm('¿Seguro que querés eliminar este producto? Esta acción no se puede deshacer.')) return;
+  try {
+    sync('s');
+    // Borrar la fila limpiando todas las celdas
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET}!A${editRow}:I${editRow}:clear`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    });
+    // Quitar de la lista local
+    products = products.filter(p => p.rowIndex !== editRow);
+    sync('ok');
+    closeForm();
+    apply();
+    badge();
+  } catch(e) {
+    sync('e');
+    alert('Error al eliminar: ' + e.message);
+  }
 }
 function todayStr() {
   const d = new Date();
