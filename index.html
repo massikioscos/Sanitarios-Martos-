@@ -621,7 +621,14 @@ function clearF() {
   document.getElementById('fZ').value = '';
   document.getElementById('saveMsg').textContent = '';
 }
-function closeForm() { close1('oForm'); clearF(); editRow = -1; }
+function closeForm() {
+  close1('oForm');
+  clearF();
+  editRow = -1;
+  const btn = document.getElementById('btnSave');
+  btn.disabled = false;
+  btn.textContent = '💾 Guardar';
+}
 
 function previewPh(input) {
   const file = input.files[0]; if (!file) return;
@@ -689,7 +696,13 @@ async function saveProduct() {
     } else {
       products.push(newProduct);
     }
-    setTimeout(() => { closeForm(); apply(); badge(); }, 800);
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = '💾 Guardar';
+      closeForm();
+      apply();
+      badge();
+    }, 800);
   } catch(e) {
     sync('e');
     showMsg('❌ Error: ' + e.message, '#e53e3e');
