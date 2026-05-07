@@ -307,14 +307,7 @@ body { background: #f0f4fa; color: #1a1a2e; font-family: 'Nunito', sans-serif; f
     <div class="fg"><label class="fl">Zona</label>
       <select class="fs" id="fZ"><option value="">Seleccionar zona...</option></select>
     </div>
-    <div class="fg">
-      <label class="fl">Foto del Producto</label>
-      <input type="file" id="fFI" accept="image/*" capture="environment" style="display:none" onchange="previewPh(this)">
-      <div class="photo-zone" onclick="document.getElementById('fFI').click()">
-        <img class="photo-prev" id="fFP">
-        <div id="fFPH"><div class="pz-ico">📷</div><div class="pz-txt">Tocar para sacar foto</div></div>
-      </div>
-    </div>
+
     <div class="fg"><label class="fl">Notas</label><textarea class="fta" id="fNo" placeholder="Palabras clave, observaciones..."></textarea></div>
 
     <button class="btn-save" id="btnSave" onclick="saveProduct()">💾 Guardar</button>
@@ -343,10 +336,12 @@ body { background: #f0f4fa; color: #1a1a2e; font-family: 'Nunito', sans-serif; f
 // ── CONFIG ──
 const CLIENT_ID = '408356334926-gc0935hs83tnl2v809fvf7p2v0ccgjs0.apps.googleusercontent.com';
 const SHEET_ID  = '1-FBBEj_tXeOl9DzA1i1ug_EjcCrzhFyktNNQTQLbqdE';
-const SHEET     = 'INVENTARIO';
+const SHEET     = 'Inventario';
 const BASE      = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values`;
 const SCOPE     = 'https://www.googleapis.com/auth/spreadsheets';
 const HDRS      = ['ID_Codigo','Nombre_Producto','Precio_Venta','Fecha_Actualizacion','Ubicacion_Detallada','Zona','Foto_URL','Notas','Fecha_Alta'];
+const SHEET_ZONAS = 'Zonas';
+const HDRS_ZONAS  = ['Nombre_Zona'];
 
 let accessToken = null;
 let products    = [];
@@ -354,8 +349,7 @@ let curFilter   = 'todos';
 let curSearch   = '';
 let editRow     = -1;
 let ph64        = null;
-let zones       = JSON.parse(localStorage.getItem('inv_zones') || '[]');
-if (!zones.length) zones = ['Depósito 1', 'Depósito 2', 'Oficina'];
+let zones       = [];
 
 // ── GOOGLE SIGN IN ──
 function signIn() {
@@ -406,12 +400,39 @@ async function sheetsAppend(values) {
 async function initSheet() {
   try {
     const d = await sheetsGet('A1:I1');
-    if (!d.values || d.values[0][0] !== 'ID_Codigo') {
-      await sheetsPut('A1:I1', [HDRS]);
+    if (!d.values || d.values[0][0] !== 'ID_Codigo') await sheetsPut('A1:I1', [HDRS]);
+  } catch(e) { await sheetsPut('A1:I1', [HDRS]); }
+
+  // Init zonas sheet
+  try {
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_ZONAS}!A1:A1`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const d = await r.json();
+    if (!d.values || d.values[0][0] !== 'Nombre_Zona') {
+      await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_ZONAS}!A1:A4?valueInputOption=USER_ENTERED`, {
+        method: 'PUT', headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ values: [['Nombre_Zona'],['Depósito 1'],['Depósito 2'],['Oficina']] })
+      });
     }
   } catch(e) {
-    await sheetsPut('A1:I1', [HDRS]);
+    // Hoja Zonas no existe aún — Google la crea sola en el primer PUT si existe el sheet
   }
+  await loadZones();
+}
+
+async function loadZones() {
+  try {
+    const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_ZONAS}!A2:A200`, {
+      headers: { Authorization: `Bearer ${accessToken}` }
+    });
+    const d = await r.json();
+    zones = (d.values || []).map(row => row[0]).filter(Boolean);
+  } catch(e) {
+    zones = [];
+  }
+  renderChips();
+  fillZoneSelect();
 }
 
 async function load() {
@@ -717,11 +738,24 @@ function addZone() {
   renderZoneList();
 }
 function removeZone(i) { zones.splice(i,1); renderZoneList(); }
-function saveZones() {
-  localStorage.setItem('inv_zones', JSON.stringify(zones));
-  renderChips();
-  fillZoneSelect();
-  close1('oZonas');
+async function saveZones() {
+  try {
+    // Primero limpiar todas las filas viejas
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_ZONAS}!A1:A200:clear`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' }
+    });
+    // Después escribir las nuevas
+    const rows = [['Nombre_Zona'], ...zones.map(z => [z])];
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_ZONAS}!A1:A${rows.length}?valueInputOption=USER_ENTERED`, {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ values: rows })
+    });
+    renderChips();
+    fillZoneSelect();
+    close1('oZonas');
+  } catch(e) { alert('Error guardando zonas: ' + e.message); }
 }
 
 // ── HELPERS ──
